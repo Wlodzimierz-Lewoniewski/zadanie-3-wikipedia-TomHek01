@@ -12,18 +12,18 @@ def parse_article_page(html):
     """Analizuje HTML artykułu i zwraca wymagane informacje."""
     
     # Wewnętrzne odnośniki do innych artykułów Wikipedii (pierwsze 5)
-    internal_links = re.findall(r'<a href="(/wiki/[^":#]+)"[^>]*>(.*?)</a>', html)
-    internal_links = [link[1] for link in internal_links[:5]]
+    internal_links = re.findall(r'<a href="(/wiki/[^":#]+)"[^>]*>([^<]+)</a>', html)
+    internal_links = [link[1] for link in internal_links if ':' not in link[0]][:5]
     
-    # URL-e obrazków (pierwsze 3)
+    # URL-e obrazków (pierwsze 3), wyłączając nawigacyjne ikony
     image_urls = re.findall(r'<img[^>]+src="(//upload\.wikimedia\.org[^"]+)"', html)
     image_urls = ["https:" + url for url in image_urls[:3]]
     
-    # URL-e zewnętrzne (pierwsze 3)
+    # URL-e zewnętrzne (pierwsze 3), z klasą "external"
     external_links = re.findall(r'<a[^>]+href="(https?://[^"]+)"[^>]*class="external"', html)
     external_links = external_links[:3]
     
-    # Kategorie (pierwsze 3)
+    # Kategorie (pierwsze 3), wykluczając nawigacyjne elementy
     categories = re.findall(r'<a[^>]+href="/wiki/Kategoria:[^"]+"[^>]*>([^<]+)</a>', html)
     categories = categories[:3]
 
@@ -56,7 +56,7 @@ def main():
     
     # Pobierz listę artykułów z kategorii
     html = fetch_html(category_url)
-    article_links = re.findall(r'<a href="(/wiki/[^":#]+)"[^>]*>(.*?)</a>', html)
+    article_links = re.findall(r'<a href="(/wiki/[^":#]+)"[^>]*>([^<]+)</a>', html)
     article_urls = ['https://pl.wikipedia.org' + link[0] for link in article_links[:2]]
     
     # Przetwórz i wyświetl dane dla każdego artykułu
