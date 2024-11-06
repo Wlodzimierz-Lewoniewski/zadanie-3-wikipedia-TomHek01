@@ -2,66 +2,71 @@ import requests
 from bs4 import BeautifulSoup
 import html
 
-def get_category_links(category):
-    url = f'https://pl.wikipedia.org/wiki/Kategoria:{category}'
-    response = requests.get(url)
+def get_articles(cat_name):
+    url = f'https://pl.wikipedia.org/wiki/Kategoria:{cat_name}'
+    res = requests.get(url)
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        section = soup.find("div", class_="mw-category mw-category-columns")
-        return [a['href'] for a in section.find_all("a")][:2]
+    if res.status_code == 200:
+        soup = BeautifulSoup(res.text, 'html.parser')
+        sec = soup.find("div", class_="mw-category mw-category-columns")
+        if sec:
+            return [link['href'] for link in sec.find_all("a")[:2]]
     else:
-        print(f"Error: {response.status_code}")
-        return []
+        print(f"Error: {res.status_code}")
+    return []
 
+def get_article_data(article_path):
+    url = f'https://pl.wikipedia.org{article_path}'
+    res = requests.get(url)
 
-def get_article_data(article_link):
-    url = f'https://pl.wikipedia.org{article_link}'
-    response = requests.get(url)
+    if res.status_code == 200:
+        soup = BeautifulSoup(res.text, 'html.parser')
+        content = soup.find("div", class_="mw-body-content")
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        content_div = soup.find("div", class_="mw-body-content")
+        # Zmieniony warunek: wykluczamy "Kategorie" oraz "Kategoria"
+        internal = [a['title'] for a in content.find_all('a', href=True)
+                    if a['href'].startswith('/wiki/') and ':' not in a['href'][6:] and a['title'] not in ["Kategorie", "Kategoria"]]
+        internal_summary = " | ".join(internal[:5])
 
-        internal_links = [a['title'] for a in content_div.find_all('a', href=True)
-                          if a['href'].startswith('/wiki/') and ':' not in a['href'][6:]]
-        internal_links_summary = " | ".join(internal_links[:5])
+        images = [img['src'] for img in content.find_all('img') if '/wiki/' not in img['src']][:3]
+        images_summary = " | ".join(images)
 
-        images = [img['src'] for img in content_div.find_all('img') if '/wiki/' not in img['src']][:3]
-        images_summary = " | ".join(images) if images else ""
+        refs = soup.find("div", class_="mw-references-wrap mw-references-columns") or \
+               soup.find("div", class_="do-not-make-smaller refsection")
 
-        refs_div = soup.find("div", class_="mw-references-wrap mw-references-columns")
-        if refs_div is None:
-            refs_div = soup.find("div", class_="do-not-make-smaller refsection")
+        external = []
+        if refs:
+            for item in refs.find_all("li"):
+                for ref in item.find_all("span", class_="reference-text"):
+                    for a in ref.find_all("a", href=True):
+                        if "http" in a['href']:
+                            external.append(html.escape(a['href']))
+                            if len(external) == 3:
+                                break
+                    if len(external) == 3:
+                        break
+                if len(external) == 3:
+                    break
 
-        external_links = []
-        if refs_div:
-            ref_items = refs_div.find_all("li")
-            for item in ref_items[:3]:
-                ref_links = item.find_all("span", class_="reference-text")
-                for link in ref_links:
-                    external_links.extend([a['href'] for a in link.find_all("a", href=True) if "http" in a['href']])
+        external_summary = " | ".join(external)
 
-        external_links_summary = " | ".join([html.escape(link) for link in external_links[:3]])
-
-        category_section = soup.find("div", class_="mw-normal-catlinks")
-        categories = [a.text.strip() for a in category_section.find_all("a")][:3] if category_section else []
+        cat_sec = soup.find("div", class_="mw-normal-catlinks")
+        categories = [a.text.strip() for a in cat_sec.find_all("a")[:4] if a.text.strip() not in ["Kategorie", "Kategoria"]] if cat_sec else []
         categories_summary = " | ".join(categories)
 
-        return [internal_links_summary, images_summary, external_links_summary, categories_summary]
-
+        return [internal_summary, images_summary, external_summary, categories_summary]
     else:
-        print(f"Error: {response.status_code}")
-        return []
+        print(f"Error: {res.status_code}")
+    return []
 
-def main():
-    category = input().replace(" ", "_")
-
-    links = get_category_links(category)
-    for link in links:
-        data = get_article_data(link)
-        for item in data:
-            print(item)
-
+def display_data(category):
+    articles = get_articles(category)
+    for path in articles:
+        article_info = get_article_data(path)
+        
+        for section in article_info:
+            print(section)
+    
 if __name__ == "__main__":
-    main()
+    cat = input("Enter category name: ").replace(" ", "_")
+    display_data(cat)
